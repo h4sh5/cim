@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
     initscr();
     cbreak();
     noecho();
+    keypad(stdscr, 1);//enable things like arrow keys
 
     buffer = malloc(buffersize);
 
@@ -89,7 +90,7 @@ int main(int argc, char **argv) {
     mvprintw(0, 0, "welcome to cim; type i to start typing; press q to exit LINES:%d COLS:%d\n", LINES, COLS);
 
     while (1) {
-    	char c = getch();
+    	int c = getch();
 
     	mvprintw(LINES - 1, COLS - 5, "c:%02x", c);
     	refresh();
@@ -140,6 +141,23 @@ int main(int argc, char **argv) {
 		    	move(cur_y, cur_x);
 
 	    	}
+	    	// arrow key and vim binding movements
+	    	if (c == 'h' || c == KEY_LEFT) {
+	    		cur_x --;
+	    		move(cur_y, cur_x);
+	    	}
+	    	if (c == 'j' || c == KEY_DOWN) {
+	    		cur_y ++;
+	    		move(cur_y, cur_x);
+	    	}
+	    	if (c == 'k' || c == KEY_UP) {
+	    		cur_y --;
+	    		move(cur_y, cur_x);
+	    	}
+	    	if (c == 'l' || c == KEY_RIGHT) {
+	    		cur_x ++;
+	    		move(cur_y, cur_x);
+	    	}
 
 
 	    	refresh();
@@ -158,7 +176,7 @@ int main(int argc, char **argv) {
     		#ifdef 	__APPLE__
     		if (c == 0x7f || c == 0x8) { // backspace on mac keyboard
     		#else
-    		if (c == 0x8) { // backspace 
+    		if (c == 0x8) { // backspace, could also use KEY_BACKSPACE
     		#endif
     		
     			// TODO implement line switching
@@ -170,6 +188,28 @@ int main(int argc, char **argv) {
     			continue;
 
     		}
+
+    		// arrow key and vim binding movements
+	    	if (c == KEY_LEFT) {
+	    		cur_x --;
+	    		move(cur_y, cur_x);
+	    		continue;
+	    	}
+	    	if (c == KEY_DOWN) {
+	    		cur_y ++;
+	    		move(cur_y, cur_x);
+	    		continue;
+	    	}
+	    	if (c == KEY_UP) {
+	    		cur_y --;
+	    		move(cur_y, cur_x);
+	    		continue;
+	    	}
+	    	if (c == KEY_RIGHT) {
+	    		cur_x ++;
+	    		move(cur_y, cur_x);
+	    		continue;
+	    	}
 
     		mvaddch(cur_y, cur_x ,c);
     		buf_add_char(c);
