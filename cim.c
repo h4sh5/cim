@@ -126,6 +126,12 @@ unsigned long lookup_buf_index(int line, int x) {
 	return bufindex;
 }
 
+/* err msg on the bottom right corner */
+void errmsg(char* msg) { 
+	getmaxyx(stdscr, LINES, COLS); // update LINES and COLS to adapt to changing screen sizes;
+	mvaddstr(LINES - 1, COLS - strlen(msg), msg);
+	refresh();
+}
 
 /** report debug info / status in the corner 
  * input_c is the result of getch()
@@ -138,6 +144,34 @@ void status_report_corner(int input_c) {
 	refresh();
 }
 
+
+
+void load_file() {
+	FILE *fp = fopen(filepath, "r");
+	int done = 0;
+	int rlen = 0;
+	if (fp != NULL) {
+		while (!done) {
+			rlen += fread(buffer+rlen, 1, buffersize, fp);
+			if (rlen == 0 || feof(fp)) {
+				done = 1;
+			}
+			// if bigger
+			if (rlen >= buffersize) {
+				increase_buffer();
+			}
+		}
+	} else {
+		errmsg("cannot open file; does it exist?");
+	}
+
+	// display buffer on screen
+	clear();
+	mvprintw(0,0,"%s", buffer);
+	refresh();
+
+	
+}
 
 /* LINES and COLS are macros that tell how big the window is; 
 to print to the last line / line, use line - 1 and col - 1
@@ -154,16 +188,23 @@ int main(int argc, char **argv) {
 
     buffer = malloc(buffersize);
 
+    
     cur_y = 0;
     cur_x = 0;
 
     cur_mode = MODE_NORM;
-    int first_time = 1;
+    int first_time;
 
+    // load file if there is one
+    if (argc > 1) {
+    	filepath = argv[1];
+    	first_time = 0;
+    	load_file();
+    } else {
+    	first_time = 1;
+		mvprintw(0, 0, "welcome to cim; type i to start typing; press q to exit LINES:%d COLS:%d\n", LINES, COLS);
+    }
 
-    // mvaddstr(0, 0, msg);
-    // mvaddch(0, 0, 'c');
-    mvprintw(0, 0, "welcome to cim; type i to start typing; press q to exit LINES:%d COLS:%d\n", LINES, COLS);
 
     while (1) {
     	int c = getch();
