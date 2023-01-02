@@ -210,7 +210,43 @@ void move_down() {
 		buffer_on_screen = memchr(buffer_on_screen, '\n', buffer_len_real) + 1;
 		clear();
 		mvprintw(0, 0, "%s", buffer_on_screen);
+		// update these variables since ive scrolled down one line
+		scroll_lines_above += 1; // now there's one more line above us
+		scroll_lines_below -= 1;
 		cur_y = LINES - 1;
+	}
+	move(cur_y, cur_x);
+
+	status_report_corner();
+	refresh();
+
+}
+
+
+/* wrapper function for moving upwards 
+scroll when necessary */
+void move_up() {
+	getmaxyx(stdscr, LINES, COLS);
+	if (cur_y > 0) { // can't move past the top
+		cur_y--;
+		cur_line--;
+	}
+	
+	
+	if (cur_y >= 0 && scroll_lines_above > 0) { // need to scroll up && can scroll up
+		
+		// buffer_on_screen = memchr(buffer_on_screen, '\n', buffer_len_real) + 1;
+
+		// start from the top, and search \n for (scroll_lines_above - 1) times
+		buffer_on_screen = buffer; 
+		for (unsigned int i = 0; i < scroll_lines_above - 1; ++i) {
+			buffer_on_screen = memchr(buffer_on_screen, '\n', buffer_len_real) + 1;
+		}
+		clear();
+		mvprintw(0, 0, "%s", buffer_on_screen);
+		scroll_lines_above -= 1; // now there's one less line above us
+		scroll_lines_below += 1;
+		cur_y = 0; // on top
 	}
 	move(cur_y, cur_x);
 
@@ -307,8 +343,7 @@ int main(int argc, char **argv) {
 	    		move_down();
 	    	}
 	    	if (c == 'k' || c == KEY_UP) {
-	    		cur_y --;
-	    		move(cur_y, cur_x);
+	    		move_up();
 	    	}
 	    	if (c == 'l' || c == KEY_RIGHT) { // TODO scrolling sideways
 	    		cur_x ++;
@@ -368,8 +403,7 @@ int main(int argc, char **argv) {
 	    		continue;
 	    	}
 	    	if (c == KEY_UP) {
-	    		cur_y --;
-	    		move(cur_y, cur_x);
+	    		move_up();
 	    		continue;
 	    	}
 	    	if (c == KEY_RIGHT) {
