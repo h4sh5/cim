@@ -18,12 +18,20 @@ int cur_mode; // current mode
 unsigned int cur_y, cur_x; // cim current x and y of text (e.g. where the user was typing)
 int cur_line = 0;
 
+int input_c;
+
 
 char *buffer;
+char *buffer_on_screen; // buffer, but the pointer points to the start of where it is on the screen
 unsigned long buffersize = 10240; // by default initiate with that much buffer
 unsigned long buffer_len_real = 0; // how many bytes are really in here?
 unsigned long bufindex = 0;
 char *filepath = NULL;
+
+// (e.g. if there are 50 lines in file, and the screen is 10 lines big, then there's 0 lines above and 40 lines below)
+unsigned long scroll_lines_above; // how many lines above current screen
+unsigned long scroll_lines_below; // how many lines below current screen
+
 
 /* the idea behind text_line_lens is an instant access array to tell how long 
 each line is, and use that to calculate buffer indexes when the user moves 
@@ -134,9 +142,9 @@ void errmsg(char* msg) {
 }
 
 /** report debug info / status in the corner 
- * input_c is the result of getch()
+ * input_c is the result of getch() (global var)
  **/
-void status_report_corner(int input_c) {
+void status_report_corner() {
 	getmaxyx(stdscr, LINES, COLS); // update LINES and COLS to adapt to changing screen sizes
 	char msg[COLS];
 	// TODO: clear last line before this happens?
@@ -190,6 +198,28 @@ void save_file() {
 	mvprintw(screen_rows-1, screen_cols - strlen(msg), "%s", msg);
 }
 
+/* wrapper function for moving downwards 
+scroll when necessary */
+void move_down() {
+	getmaxyx(stdscr, LINES, COLS);
+	cur_y++;
+	cur_line++;
+	if (cur_y >= LINES - 1) { // need to scroll down
+		// do this by redrawing the page from the next line onwards,
+		// using pointer arithmetic in *buffer
+		buffer_on_screen = memchr(buffer_on_screen, '\n', buffer_len_real) + 1;
+		clear();
+		mvprintw(0, 0, "%s", buffer_on_screen);
+		cur_y = LINES - 1;
+	}
+	move(cur_y, cur_x);
+
+	status_report_corner();
+	refresh();
+
+}
+
+
 /* LINES and COLS are macros that tell how big the window is; 
 to print to the last line / line, use line - 1 and col - 1
 */
@@ -204,6 +234,7 @@ int main(int argc, char **argv) {
     init_line_lengths();
 
     buffer = malloc(buffersize);
+    buffer_on_screen = buffer; // initially the same
 
     
     cur_y = 0;
@@ -224,8 +255,9 @@ int main(int argc, char **argv) {
 
 
     while (1) {
-    	int c = getch();
-    	status_report_corner(c);
+    	input_c = getch();
+    	int c = input_c; //just an alias
+    	status_report_corner();
     	
     	if (cur_mode == MODE_NORM) {
     		if (c == 'q') {
@@ -272,14 +304,13 @@ int main(int argc, char **argv) {
 	    		move(cur_y, cur_x);
 	    	}
 	    	if (c == 'j' || c == KEY_DOWN) {
-	    		cur_y ++;
-	    		move(cur_y, cur_x);
+	    		move_down();
 	    	}
 	    	if (c == 'k' || c == KEY_UP) {
 	    		cur_y --;
 	    		move(cur_y, cur_x);
 	    	}
-	    	if (c == 'l' || c == KEY_RIGHT) {
+	    	if (c == 'l' || c == KEY_RIGHT) { // TODO scrolling sideways
 	    		cur_x ++;
 	    		move(cur_y, cur_x);
 	    	}
@@ -333,8 +364,7 @@ int main(int argc, char **argv) {
 	    		continue;
 	    	}
 	    	if (c == KEY_DOWN) {
-	    		cur_y ++;
-	    		move(cur_y, cur_x);
+	    		move_down();
 	    		continue;
 	    	}
 	    	if (c == KEY_UP) {
@@ -352,7 +382,7 @@ int main(int argc, char **argv) {
     		buf_add_char(c);
     		if (c == '\n') {
     			inc_line_length(cur_line); // \n counts as 1 char in buffer
-    			cur_y++;
+    			move_down();
     			cur_line++;
     			cur_x = 0; // new line, reset x
     		} else {
