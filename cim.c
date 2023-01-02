@@ -14,14 +14,36 @@ void quit(int exitcode) {
 	exit(exitcode);
 }
 
-static int cur_mode; // current mode
-static int cur_y, cur_x; // cim current x and y of text (e.g. where the user was typing)
+int cur_mode; // current mode
+unsigned int cur_y, cur_x; // cim current x and y of text (e.g. where the user was typing)
+int cur_line = 0;
+
 
 char *buffer;
 unsigned long buffersize = 10240; // by default initiate with that much buffer
 unsigned long buffer_len_real = 0; // how many bytes are really in here?
 unsigned long bufindex = 0;
 char *filepath = NULL;
+
+/* the idea behind text_line_lens is an instant access array to tell how long 
+each line is, and use that to calculate buffer indexes when the user moves 
+around with the cursor using y,x coordinates 
+
+e.g. #line text
+#0 this\n             --> line length 5 ("this" + "\n")
+#1 is\n               --> line length 3 
+#2 an example        --> line length 11
+      ^
+x->0123456789
+      
+      the 'e' marked with ^ is on y = 2 (line = 2), and x = 3
+      and its buffer location is 5 + 3 + 3 = 11
+
+so the buffer index of a given y,x coord is the sum of line lengths before the
+current line number PLUS the x coordinate
+*/
+unsigned long *text_line_lens; // a index-mapped dynamic array of how long each line is
+unsigned long text_lines_len_items; // number of lines (items) allocated in text_line_lens
 
 int screen_rows,screen_cols; // to store the size of screen
 
@@ -65,6 +87,58 @@ void buf_remove_char() {
 	
 }
 
+void init_line_lengths() {
+	text_line_lens = malloc(sizeof(unsigned long) * 1);
+	text_lines_len_items = 1;
+}
+
+void check_expand_line_lengths(int line) {
+	if (line >= text_lines_len_items) {
+		text_line_lens = realloc(text_line_lens, sizeof(unsigned long) * text_lines_len_items*2);
+		if (text_line_lens == NULL) {
+			mvprintw(LINES - 1, 0, "Error: out of mem: attempted realloc() with %d bytes\n", text_lines_len_items*2);
+		} else {
+			text_lines_len_items *= 2;
+		}
+	}
+}
+/* update the length of a line in the line length array */
+void update_line_length(int line, unsigned long length) {
+	check_expand_line_lengths(line);
+	text_line_lens[line] = length;
+}
+
+void inc_line_length(int line) {
+	check_expand_line_lengths(line);
+	text_line_lens[line]++;
+}
+
+// get buffer index by line number
+unsigned long lookup_buf_index(int line, int x) {
+	unsigned long bufindex = 0;
+	for (int i = 0; i < line; ++i)
+	{
+		/* add lengths of all lines before this one */
+		bufindex += text_line_lens[i];
+	}
+	// now for current line
+	bufindex += x;
+	return bufindex;
+}
+
+
+/** report debug info / status in the corner 
+ * input_c is the result of getch()
+ **/
+void status_report_corner(int input_c) {
+	getmaxyx(stdscr, LINES, COLS); // update LINES and COLS to adapt to changing screen sizes
+	char msg[COLS];
+	snprintf(msg, COLS, "y/x %d/%d line:%d c:%02x buf_i:%lu", cur_y,cur_x, cur_line, input_c, lookup_buf_index(cur_line, cur_x));
+	mvaddstr(LINES - 1, COLS - strlen(msg), msg);
+	refresh();
+}
+
+
 /* LINES and COLS are macros that tell how big the window is; 
 to print to the last line / line, use line - 1 and col - 1
 */
@@ -75,6 +149,8 @@ int main(int argc, char **argv) {
     cbreak();
     noecho();
     keypad(stdscr, 1);//enable things like arrow keys
+
+    init_line_lengths();
 
     buffer = malloc(buffersize);
 
@@ -91,9 +167,7 @@ int main(int argc, char **argv) {
 
     while (1) {
     	int c = getch();
-
-    	mvprintw(LINES - 1, COLS - 5, "c:%02x", c);
-    	refresh();
+    	status_report_corner(c);
     	
     	if (cur_mode == MODE_NORM) {
     		if (c == 'q') {
@@ -110,7 +184,7 @@ int main(int argc, char **argv) {
 	   
 
 	    	}
-	    	if (c == 's') {
+	    	if (c == 's' || c == 'w') { // maybe get rid of s, idk
 	    		if (filepath == NULL) {
 	    			// popup window in the middle
 	    			char msg[] = "enter filepath to save: ";
@@ -179,7 +253,7 @@ int main(int argc, char **argv) {
     		if (c == 0x8) { // backspace, could also use KEY_BACKSPACE
     		#endif
     		
-    			// TODO implement line switching
+    			// TODO implement deleting pass end of line, need to move cursor up
     			mvaddch(cur_y, cur_x - 1, ' ');
     			buf_remove_char();
     			cur_x--;
@@ -214,10 +288,13 @@ int main(int argc, char **argv) {
     		mvaddch(cur_y, cur_x ,c);
     		buf_add_char(c);
     		if (c == '\n') {
+    			inc_line_length(cur_line); // \n counts as 1 char in buffer
     			cur_y++;
+    			cur_line++;
     			cur_x = 0; // new line, reset x
     		} else {
     			cur_x++;
+    			inc_line_length(cur_line);
     		} 
     		refresh();
     	}
