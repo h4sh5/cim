@@ -20,4 +20,5 @@ make
 
 ## TODO
 
-- [ ] implement paging / scrolling 
+- [ ] implement proper paging / scrolling 
+- [ ] fix cursor movements when scrolling
