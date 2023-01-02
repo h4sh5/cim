@@ -72,8 +72,8 @@ void buf_add_char(char c) {
 		increase_buffer();
 	}
 	buffer[bufindex] = c;
-	bufindex ++;
-	buffer_len_real ++;
+	bufindex++;
+	buffer_len_real++;
 }
 
 /* remove a char from the immediate index by setting it to NULL */
@@ -81,9 +81,9 @@ void buf_remove_char() {
 	buffer[bufindex] = 0;
 
 	if (bufindex > 0) { // no underflowing
-		bufindex --;
+		bufindex--;
 	}
-	buffer_len_real --;
+	buffer_len_real--;
 	
 }
 
@@ -145,7 +145,11 @@ void status_report_corner(int input_c) {
 }
 
 
-
+/**
+ * load the filepath into buffer and display on screen,
+ * making sure that internal states like number of lines, buf index and len
+ * are all updated accordingly
+ */
 void load_file() {
 	FILE *fp = fopen(filepath, "r");
 	int done = 0;
@@ -153,6 +157,7 @@ void load_file() {
 	if (fp != NULL) {
 		while (!done) {
 			rlen += fread(buffer+rlen, 1, buffersize, fp);
+			buffer_len_real += rlen; // need to add this for internal state tracking
 			if (rlen == 0 || feof(fp)) {
 				done = 1;
 			}
@@ -171,6 +176,17 @@ void load_file() {
 	refresh();
 
 	
+}
+
+/* write internal buffer to file */
+void save_file() {
+	FILE *fp = fopen(filepath, "w+");
+	fwrite(buffer, buffer_len_real, 1, fp);
+	fclose(fp);
+	char msg[strlen("saved to: ") + strlen(filepath) +  1];
+	sprintf(msg, "saved to: %s", filepath);
+	getmaxyx(stdscr,screen_rows,screen_cols);
+	mvprintw(screen_rows-1, screen_cols - strlen(msg) - 1, "%s", msg);
 }
 
 /* LINES and COLS are macros that tell how big the window is; 
@@ -244,14 +260,7 @@ int main(int argc, char **argv) {
 
 	    		}
 
-	    		// now flush the buffer to file
-	    		FILE *fp = fopen(filepath, "w+");
-    			fwrite(buffer, buffer_len_real, 1, fp);
-	    		fclose(fp);
-	    		char msg[strlen("saved to: ") + strlen(filepath) +  1];
-	    		sprintf(msg, "saved to: %s", filepath);
-	    		getmaxyx(stdscr,screen_rows,screen_cols);
-	    		mvprintw(screen_rows-1, screen_cols - strlen(msg) - 1, "%s", msg);
+	    		save_file();
 	    		// move cursor back 
 		    	move(cur_y, cur_x);
 
