@@ -139,6 +139,7 @@ void errmsg(char* msg) {
 void status_report_corner(int input_c) {
 	getmaxyx(stdscr, LINES, COLS); // update LINES and COLS to adapt to changing screen sizes
 	char msg[COLS];
+	// TODO: clear last line before this happens?
 	snprintf(msg, COLS, "y/x %d/%d line:%d c:%02x buf_i:%lu", cur_y,cur_x, cur_line, input_c, lookup_buf_index(cur_line, cur_x));
 	mvaddstr(LINES - 1, COLS - strlen(msg), msg);
 	refresh();
@@ -186,7 +187,7 @@ void save_file() {
 	char msg[strlen("saved to: ") + strlen(filepath) +  1];
 	sprintf(msg, "saved to: %s", filepath);
 	getmaxyx(stdscr,screen_rows,screen_cols);
-	mvprintw(screen_rows-1, screen_cols - strlen(msg) - 1, "%s", msg);
+	mvprintw(screen_rows-1, screen_cols - strlen(msg), "%s", msg);
 }
 
 /* LINES and COLS are macros that tell how big the window is; 
@@ -287,7 +288,6 @@ int main(int argc, char **argv) {
 	    	refresh();
 
     	} else if (cur_mode == MODE_TYPING) {
-    		// TODO implement vim movement and arrow key bindings
 
     		if (c == 0x1b) { //ESC / escape
     			cur_mode = MODE_NORM; // switch back to normal
@@ -304,9 +304,22 @@ int main(int argc, char **argv) {
     		#endif
     		
     			// TODO implement deleting pass end of line, need to move cursor up
-    			mvaddch(cur_y, cur_x - 1, ' ');
-    			buf_remove_char();
-    			cur_x--;
+    			if (cur_x < 1) { // backspace into previous line, or do nothing if its the top
+    				
+    				if (cur_y > 0) {
+    					cur_y--;
+    					// go to last char of previous line; but only if we are not at the top already
+    					cur_x = text_line_lens[cur_y] - 1;
+    				}
+
+    			}
+    			else {
+    				mvaddch(cur_y, cur_x - 1, ' ');
+	    			buf_remove_char();
+	    			cur_x--;
+    			}
+    			
+
     			move(cur_y, cur_x);
     			refresh();
     			continue;
